@@ -1,1 +1,643 @@
-# Azerty-et-
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strava → IA Export</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0d;
+    --bg2: #161616;
+    --bg3: #1f1f1f;
+    --border: #2a2a2a;
+    --accent: #fc4c02; /* Strava orange */
+    --accent2: #ff8c42;
+    --text: #f0f0f0;
+    --muted: #666;
+    --swim: #38bdf8;
+    --run: #fb923c;
+    --ride: #a78bfa;
+    --strength: #4ade80;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* HEADER */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo-text { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 1px; }
+
+  /* MAIN */
+  main { max-width: 860px; margin: 0 auto; padding: 40px 24px; }
+
+  /* SETUP CARD */
+  .setup-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 24px;
+  }
+  .setup-card h2 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .setup-card p { font-size: 14px; color: var(--muted); margin-bottom: 24px; line-height: 1.6; }
+
+  .steps { display: flex; flex-direction: column; gap: 16px; margin-bottom: 28px; }
+  .step {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: var(--bg3); border-radius: 10px; padding: 14px 16px;
+  }
+  .step-num {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .step-content { flex: 1; }
+  .step-content strong { display: block; font-size: 14px; margin-bottom: 3px; }
+  .step-content span { font-size: 13px; color: var(--muted); }
+  .step-content a { color: var(--accent2); text-decoration: none; }
+  .step-content a:hover { text-decoration: underline; }
+
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  @media (max-width: 560px) { .field-row { grid-template-columns: 1fr; } }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  input[type="text"], input[type="number"], select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: 'DM Mono', monospace;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 10px;
+    padding: 12px 24px; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: opacity 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { background: var(--bg3); color: var(--muted); cursor: not-allowed; opacity: 1; }
+  .btn-outline {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); opacity: 1; }
+  .btn-green { background: #16a34a; }
+
+  /* STATUS */
+  #status-bar {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 13px; font-family: 'DM Mono', monospace;
+    color: var(--muted); margin-bottom: 20px;
+    display: none;
+  }
+  #status-bar.visible { display: block; }
+  #status-bar.ok { border-color: #16a34a44; color: #4ade80; }
+  #status-bar.err { border-color: #dc262644; color: #f87171; }
+  #status-bar.loading { color: var(--accent2); }
+
+  /* PROGRESS */
+  .progress-wrap { margin: 16px 0; display: none; }
+  .progress-wrap.visible { display: block; }
+  .progress-bar-bg { background: var(--bg3); border-radius: 4px; height: 6px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s; width: 0%; }
+  .progress-label { font-size: 12px; color: var(--muted); margin-top: 6px; font-family: 'DM Mono', monospace; }
+
+  /* STATS */
+  #stats-section { display: none; }
+  #stats-section.visible { display: block; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .stat-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px;
+  }
+  .stat-val { font-size: 24px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--text); }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; }
+
+  /* TYPE BREAKDOWN */
+  .type-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 28px; }
+  @media (max-width: 500px) { .type-grid { grid-template-columns: 1fr; } }
+  .type-card {
+    background: var(--bg2); border-radius: 12px; padding: 14px 16px;
+    border-left: 3px solid var(--border);
+  }
+  .type-card.swim { border-color: var(--swim); }
+  .type-card.run { border-color: var(--run); }
+  .type-card.ride { border-color: var(--ride); }
+  .type-card.strength { border-color: var(--strength); }
+  .type-card .type-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .type-card .type-stats { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  /* EXPORT BOX */
+  .export-box {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 14px; padding: 24px;
+  }
+  .export-box h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .export-box p { font-size: 13px; color: var(--muted); margin-bottom: 18px; line-height: 1.6; }
+  .export-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .preview-box {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: #888; white-space: pre-wrap; overflow-x: auto;
+    margin-top: 16px; max-height: 220px; overflow-y: auto;
+    display: none;
+  }
+  .preview-box.visible { display: block; }
+
+  .prompt-box {
+    background: #0a1a0a; border: 1px solid #16a34a44;
+    border-radius: 10px; padding: 14px 16px;
+    font-size: 13px; color: #86efac; font-style: italic;
+    margin-top: 16px; line-height: 1.6;
+    display: none;
+  }
+  .prompt-box.visible { display: block; }
+
+  .tag { display: inline-block; background: var(--accent)22; color: var(--accent2); border-radius: 20px; padding: 2px 10px; font-size: 11px; font-weight: 600; border: 1px solid var(--accent)44; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">⚡</div>
+    <div>
+      <div class="logo-text">Strava → IA</div>
+      <div class="logo-sub">training data exporter</div>
+    </div>
+  </div>
+  <span class="tag" id="activity-count-tag" style="display:none"></span>
+</header>
+
+<main>
+
+  <!-- SETUP -->
+  <div class="setup-card" id="setup-section">
+    <h2>Connecte ton compte Strava</h2>
+    <p>Récupère automatiquement toutes tes activités (natation, course, vélo, renforcement) et génère un fichier JSON prêt pour ChatGPT ou Claude.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <strong>Crée une application Strava gratuite</strong>
+          <span>Va sur <a href="https://www.strava.com/settings/api" target="_blank">strava.com/settings/api</a> → "Create & Manage Your App" → remplis n'importe quel nom (ex: "Mon Export"). Dans "Authorization Callback Domain" mets <code>localhost</code>.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <strong>Copie ton Client ID et Client Secret</strong>
+          <span>Une fois l'app créée, tu vois "Client ID" (un nombre) et "Client Secret" (une longue chaîne). Colle-les ci-dessous.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <strong>Autorise l'accès à tes activités</strong>
+          <span>Clique "Connecter Strava" — une fenêtre Strava s'ouvre, tu acceptes. Reviens ici et tes données se chargent automatiquement.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div>
+        <label>Client ID Strava</label>
+        <input type="text" id="client-id" placeholder="123456" />
+      </div>
+      <div>
+        <label>Client Secret</label>
+        <input type="text" id="client-secret" placeholder="abc123def456..." />
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div>
+        <label>Période (dernières N semaines)</label>
+        <select id="period">
+          <option value="4">4 semaines</option>
+          <option value="8">8 semaines</option>
+          <option value="12" selected>12 semaines (3 mois)</option>
+          <option value="26">26 semaines (6 mois)</option>
+          <option value="52">52 semaines (1 an)</option>
+          <option value="0">Tout récupérer</option>
+        </select>
+      </div>
+      <div>
+        <label>Activités max</label>
+        <select id="max-acts">
+          <option value="50">50 activités</option>
+          <option value="100" selected>100 activités</option>
+          <option value="200">200 activités</option>
+          <option value="500">500 activités</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn" id="connect-btn" onclick="startOAuth()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+      Connecter Strava
+    </button>
+  </div>
+
+  <div id="status-bar"></div>
+
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+    <div class="progress-label" id="progress-label">Chargement…</div>
+  </div>
+
+  <!-- STATS & EXPORT -->
+  <div id="stats-section">
+    <div class="stats-grid" id="stats-grid"></div>
+    <div class="type-grid" id="type-grid"></div>
+
+    <div class="export-box">
+      <h3>📤 Export pour IA</h3>
+      <p>Le fichier JSON contient toutes tes activités avec BPM, dénivelé, distance, durée, allure, cadence et un prompt suggéré. Importe-le directement dans ChatGPT (trombone 📎) ou Claude.</p>
+      <div class="export-buttons">
+        <button class="btn" onclick="downloadJSON()">⬇️ Télécharger JSON</button>
+        <button class="btn btn-outline" onclick="togglePreview()">👁 Aperçu</button>
+        <button class="btn btn-outline btn-green" onclick="copyPrompt()" style="border-color:#16a34a44; color:#4ade80;">📋 Copier le prompt IA</button>
+      </div>
+      <div class="preview-box" id="preview-box"></div>
+      <div class="prompt-box" id="prompt-box"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────
+const REDIRECT_URI = window.location.href.split('?')[0].split('#')[0];
+
+// ─── STATE ────────────────────────────────────────────────────
+let allActivities = [];
+let exportData = null;
+
+// ─── OAUTH ────────────────────────────────────────────────────
+function startOAuth() {
+  const clientId = document.getElementById('client-id').value.trim();
+  if (!clientId) { setStatus('⚠️ Renseigne ton Client ID Strava.', 'err'); return; }
+
+  // Save to session
+  sessionStorage.setItem('strava_client_id', clientId);
+  sessionStorage.setItem('strava_client_secret', document.getElementById('client-secret').value.trim());
+  sessionStorage.setItem('strava_period', document.getElementById('period').value);
+  sessionStorage.setItem('strava_max', document.getElementById('max-acts').value);
+
+  const scope = 'activity:read_all';
+  const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${scope}`;
+  window.location.href = authUrl;
+}
+
+// ─── HANDLE CALLBACK ─────────────────────────────────────────
+async function handleCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (!code) return;
+
+  // Clean URL
+  history.replaceState({}, '', window.location.pathname);
+
+  const clientId = sessionStorage.getItem('strava_client_id');
+  const clientSecret = sessionStorage.getItem('strava_client_secret');
+
+  if (!clientId || !clientSecret) {
+    setStatus('❌ Client ID ou Secret manquant. Recommence depuis le début.', 'err');
+    return;
+  }
+
+  setStatus('🔐 Échange du code d\'autorisation…', 'loading');
+  showProgress(0, 'Authentification Strava…');
+
+  try {
+    const tokenRes = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        grant_type: 'authorization_code'
+      })
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) throw new Error(tokenData.message || 'Token invalide');
+
+    await fetchActivities(tokenData.access_token, tokenData.athlete);
+  } catch (err) {
+    setStatus('❌ Erreur : ' + err.message, 'err');
+    hideProgress();
+  }
+}
+
+// ─── FETCH ACTIVITIES ─────────────────────────────────────────
+async function fetchActivities(token, athlete) {
+  const period = parseInt(sessionStorage.getItem('strava_period') || '12');
+  const maxActs = parseInt(sessionStorage.getItem('strava_max') || '100');
+
+  const after = period > 0
+    ? Math.floor((Date.now() - period * 7 * 24 * 3600 * 1000) / 1000)
+    : 0;
+
+  setStatus('📡 Récupération des activités…', 'loading');
+
+  let page = 1;
+  let fetched = [];
+  const perPage = 50;
+
+  while (fetched.length < maxActs) {
+    showProgress(Math.min(90, (fetched.length / maxActs) * 90), `${fetched.length} activités récupérées…`);
+
+    const url = new URL('https://www.strava.com/api/v3/athlete/activities');
+    url.searchParams.set('per_page', perPage);
+    url.searchParams.set('page', page);
+    if (after) url.searchParams.set('after', after);
+
+    const res = await fetch(url.toString(), {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!res.ok) throw new Error(`API Strava: ${res.status}`);
+    const batch = await res.json();
+    if (!batch.length) break;
+
+    fetched = fetched.concat(batch);
+    if (batch.length < perPage) break;
+    page++;
+    await sleep(300); // Rate limit friendly
+  }
+
+  fetched = fetched.slice(0, maxActs);
+  allActivities = fetched;
+
+  showProgress(100, `${fetched.length} activités chargées !`);
+  await sleep(600);
+  hideProgress();
+
+  buildExport(athlete, fetched);
+  renderStats();
+  setStatus(`✅ ${fetched.length} activités récupérées depuis Strava`, 'ok');
+}
+
+// ─── BUILD EXPORT ─────────────────────────────────────────────
+function classifyType(stravaType) {
+  const t = stravaType.toLowerCase();
+  if (t.includes('swim')) return 'natation';
+  if (t.includes('run') || t.includes('trail')) return 'course';
+  if (t.includes('ride') || t.includes('cycling') || t.includes('velo') || t.includes('bike')) return 'velo';
+  if (t.includes('weight') || t.includes('strength') || t.includes('crossfit') || t.includes('workout')) return 'renforcement';
+  return stravaType;
+}
+
+function buildExport(athlete, activities) {
+  const sorted = [...activities].sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+
+  const byType = {};
+  for (const a of sorted) {
+    const t = classifyType(a.sport_type || a.type);
+    if (!byType[t]) byType[t] = [];
+    byType[t].push(a);
+  }
+
+  const summary = {};
+  for (const [type, acts] of Object.entries(byType)) {
+    const withBpm = acts.filter(a => a.average_heartrate);
+    summary[type] = {
+      count: acts.length,
+      totalDurationMinutes: Math.round(acts.reduce((s, a) => s + a.moving_time, 0) / 60),
+      totalDistanceKm: Math.round(acts.reduce((s, a) => s + (a.distance || 0), 0) / 100) / 10,
+      totalElevationM: Math.round(acts.reduce((s, a) => s + (a.total_elevation_gain || 0), 0)),
+      avgBpmMoy: withBpm.length ? Math.round(withBpm.reduce((s, a) => s + a.average_heartrate, 0) / withBpm.length) : null,
+      avgBpmMax: acts.filter(a => a.max_heartrate).length
+        ? Math.round(acts.filter(a => a.max_heartrate).reduce((s, a) => s + a.max_heartrate, 0) / acts.filter(a => a.max_heartrate).length)
+        : null,
+    };
+  }
+
+  exportData = {
+    meta: {
+      exportDate: new Date().toISOString(),
+      source: 'Strava API',
+      athlete: athlete ? {
+        nom: `${athlete.firstname} ${athlete.lastname}`,
+        ville: athlete.city,
+        pays: athlete.country,
+      } : null,
+      periodeExportee: {
+        debut: sorted[0]?.start_date?.split('T')[0] || null,
+        fin: sorted[sorted.length - 1]?.start_date?.split('T')[0] || null,
+      },
+      totalActivites: activities.length,
+    },
+    resume: {
+      dureeGlobalMinutes: Math.round(activities.reduce((s, a) => s + a.moving_time, 0) / 60),
+      distanceTotaleKm: Math.round(activities.reduce((s, a) => s + (a.distance || 0), 0) / 100) / 10,
+      denivelePositifTotal: Math.round(activities.reduce((s, a) => s + (a.total_elevation_gain || 0), 0)),
+      bpmMoyenGlobal: (() => {
+        const withBpm = activities.filter(a => a.average_heartrate);
+        return withBpm.length ? Math.round(withBpm.reduce((s, a) => s + a.average_heartrate, 0) / withBpm.length) : null;
+      })(),
+      parDiscipline: summary,
+    },
+    activites: sorted.map(a => ({
+      id: a.id,
+      date: a.start_date?.split('T')[0],
+      heure: a.start_date_local?.split('T')[1]?.slice(0, 5),
+      nom: a.name,
+      discipline: classifyType(a.sport_type || a.type),
+      typeStrava: a.sport_type || a.type,
+      dureeMinutes: Math.round(a.moving_time / 60),
+      distanceKm: a.distance ? Math.round(a.distance / 10) / 100 : null,
+      vitesseMoyenneKmh: a.average_speed ? Math.round(a.average_speed * 3.6 * 10) / 10 : null,
+      vitesseMaxKmh: a.max_speed ? Math.round(a.max_speed * 3.6 * 10) / 10 : null,
+      denivelePositifM: a.total_elevation_gain || null,
+      bpmMoyen: a.average_heartrate || null,
+      bpmMax: a.max_heartrate || null,
+      cadenceMoy: a.average_cadence || null,
+      puissanceMoyW: a.average_watts || null,
+      calories: a.calories || null,
+      suffer_score: a.suffer_score || null,
+      kudos: a.kudos_count,
+      description: a.description || null,
+    })),
+    promptIA: `Voici mes données d'entraînement multisport récupérées depuis Strava (${activities.length} activités).
+
+Disciplines pratiquées : natation, course à pied, vélo, renforcement musculaire.
+
+Analyse mon entraînement en répondant à ces questions :
+1. **Charge d'entraînement** : Quelle est l'évolution de ma charge sur la période ? Y a-t-il des semaines de surcharge ou de sous-charge ?
+2. **Équilibre entre disciplines** : Le temps et le volume sont-ils bien répartis selon un profil triathlon/multisport ?
+3. **Fréquence cardiaque** : Comment évolue mon BPM moyen par discipline ? Est-ce que je vois des signes de fatigue ou de progression aérobie ?
+4. **Dénivelé et effort** : Analyse l'élévation accumulée sur course et vélo.
+5. **Recommandations** : Propose 3 ajustements concrets pour les 4 prochaines semaines pour progresser en triathlon.
+
+Réponds de façon structurée avec des données chiffrées issues du fichier.`
+  };
+}
+
+// ─── RENDER STATS ─────────────────────────────────────────────
+const TYPE_CONFIG = {
+  natation: { label: '🏊 Natation', cls: 'swim' },
+  course: { label: '🏃 Course', cls: 'run' },
+  velo: { label: '🚴 Vélo', cls: 'ride' },
+  renforcement: { label: '🏋️ Renforcement', cls: 'strength' },
+};
+
+function renderStats() {
+  if (!exportData) return;
+  const r = exportData.resume;
+
+  const h = Math.floor(r.dureeGlobalMinutes / 60);
+  const m = r.dureeGlobalMinutes % 60;
+
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card"><div class="stat-val">${exportData.meta.totalActivites}</div><div class="stat-label">Activités</div></div>
+    <div class="stat-card"><div class="stat-val">${h}h${String(m).padStart(2,'0')}</div><div class="stat-label">Durée totale</div></div>
+    <div class="stat-card"><div class="stat-val">${r.distanceTotaleKm} km</div><div class="stat-label">Distance</div></div>
+    <div class="stat-card"><div class="stat-val">${r.denivelePositifTotal} m</div><div class="stat-label">Dénivelé+</div></div>
+    ${r.bpmMoyenGlobal ? `<div class="stat-card"><div class="stat-val">${r.bpmMoyenGlobal}</div><div class="stat-label">BPM moyen</div></div>` : ''}
+  `;
+
+  const typeGrid = document.getElementById('type-grid');
+  typeGrid.innerHTML = '';
+  for (const [type, cfg] of Object.entries(TYPE_CONFIG)) {
+    const s = r.parDiscipline[type];
+    if (!s) continue;
+    const h2 = Math.floor(s.totalDurationMinutes / 60);
+    const m2 = s.totalDurationMinutes % 60;
+    typeGrid.innerHTML += `
+      <div class="type-card ${cfg.cls}">
+        <div class="type-name">${cfg.label}</div>
+        <div class="type-stats">
+          ${s.count} séance${s.count > 1 ? 's' : ''} · ${h2}h${String(m2).padStart(2,'0')}
+          ${s.totalDistanceKm ? ` · ${s.totalDistanceKm} km` : ''}
+          ${s.avgBpmMoy ? ` · ♥ ${s.avgBpmMoy} bpm` : ''}
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('stats-section').classList.add('visible');
+  document.getElementById('activity-count-tag').textContent = `${exportData.meta.totalActivites} activités`;
+  document.getElementById('activity-count-tag').style.display = 'inline-block';
+
+  // Prompt box
+  const pb = document.getElementById('prompt-box');
+  pb.textContent = exportData.promptIA;
+  pb.classList.add('visible');
+}
+
+// ─── EXPORT ACTIONS ───────────────────────────────────────────
+function downloadJSON() {
+  if (!exportData) return;
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const from = exportData.meta.periodeExportee.debut || 'debut';
+  const to = exportData.meta.periodeExportee.fin || 'fin';
+  a.download = `strava_training_${from}_${to}.json`;
+  a.click();
+}
+
+function togglePreview() {
+  if (!exportData) return;
+  const box = document.getElementById('preview-box');
+  if (box.classList.contains('visible')) {
+    box.classList.remove('visible');
+  } else {
+    const preview = JSON.stringify(exportData, null, 2).slice(0, 1200) + '\n\n// … ' + (exportData.activites.length) + ' activités au total';
+    box.textContent = preview;
+    box.classList.add('visible');
+  }
+}
+
+function copyPrompt() {
+  if (!exportData) return;
+  navigator.clipboard.writeText(exportData.promptIA).then(() => {
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = '✅ Copié !';
+    setTimeout(() => btn.textContent = orig, 2000);
+  });
+}
+
+// ─── UTILS ────────────────────────────────────────────────────
+function setStatus(msg, type = '') {
+  const el = document.getElementById('status-bar');
+  el.textContent = msg;
+  el.className = 'visible ' + type;
+}
+
+function showProgress(pct, label) {
+  document.getElementById('progress-wrap').classList.add('visible');
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = label;
+}
+
+function hideProgress() {
+  document.getElementById('progress-wrap').classList.remove('visible');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── INIT ─────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  // Restore saved values
+  const savedId = sessionStorage.getItem('strava_client_id');
+  const savedSecret = sessionStorage.getItem('strava_client_secret');
+  if (savedId) document.getElementById('client-id').value = savedId;
+  if (savedSecret) document.getElementById('client-secret').value = savedSecret;
+
+  // Check for OAuth callback
+  if (window.location.search.includes('code=')) {
+    handleCallback();
+  }
+});
+</script>
+</body>
+</html>
